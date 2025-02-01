@@ -1,4 +1,4 @@
-const scraper = require('./scraper');
+const scraper = require('./trideni_dat_rozvrhu');
 const admin = require('firebase-admin');
 const { getDatabase,query } = require('firebase-admin/database');
 
@@ -21,7 +21,7 @@ const supl_ziskani_datumu = async () => {
         let dny = [];
 
         await page.goto('https://www.sps-tabor.cz/rozvrh-supl/Sestava_pro_web_menu.html');
-
+        // rozvrh_Vyucujici_Ciz.html
         dny = await page.$$eval('option', elements=>{
             return Array.from(elements).map((el)=>{
                 return el.getAttribute('value');
@@ -35,27 +35,23 @@ const supl_ziskani_datumu = async () => {
     }
 
 };
-const formatDateToCustomString = (dateInput)=> {
+const formatovani_datumu_podtrizitka = (dateInput)=> {
     const date = new Date(dateInput);
-    date.getDay()===0?date.setDate(date.getDate()+1):date;
+    date.getDay()===0?date.setDate(date.getDate()+1):date; //když je neděle
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // měsíce začínají od 0, pad start udělá z 1 = 01
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}_${month}_${day}`;
 }
-function formatDateString(dateString) {
-    // Split the input string by underscore
+function formatovani_datumu_tecky(dateString) {
+    // rozdělí 2025-12-03
     const [year, month, day] = dateString.split('-');
-
-    // Convert month and day to numbers and format them
-    const formattedMonth = parseInt(month, 10); // Convert to number
-    const formattedDay = parseInt(day, 10); // Convert to number
-
-    // Return the formatted string
+    const formattedMonth = parseInt(month, 10); //desítková soustava
+    const formattedDay = parseInt(day, 10);
     return `${formattedDay}.${formattedMonth}.`;
 }
 let supl = [];
-async function fetchSmallTab(url, value) {
+async function fetch_tabulku_ucebny(url, value) {
     supl = [];
     const browser = await chromium.puppeteer.launch({
         args: [...chromium.args],
@@ -66,7 +62,7 @@ async function fetchSmallTab(url, value) {
     try {
         const page = await browser.newPage();
         await page.goto(url);
-
+        //získání samotné datum pro uložení do databáze
         const parts = url.split('_');
         const date = parts.slice(-3).join('-').replace('.html', '');
 
@@ -90,10 +86,10 @@ async function fetchSmallTab(url, value) {
                     const rowspan = parseInt(firstCellRowspan, 10);
 
                     for (let j = 0; j < rowspan; j++) {
-                        await setDocSuplProUcebny(page, `table:nth-of-type(3) tr:nth-of-type(${i + 1 + j})`,value,date);
+                        await set_supl_ucebny(page, `table:nth-of-type(3) tr:nth-of-type(${i + 1 + j})`,value,date);
                     }
                 } else {
-                    await setDocSuplProUcebny(page, `table:nth-of-type(3) tr:nth-of-type(${i + 1})`,value,date);
+                    await set_supl_ucebny(page, `table:nth-of-type(3) tr:nth-of-type(${i + 1})`,value,date);
                 }
             }
         }
@@ -107,11 +103,11 @@ async function fetchSmallTab(url, value) {
     return supl;
 
 }
-async function setDocSuplProUcebny(page, selector,ucebna,date) {
+async function set_supl_ucebny(page, selector,ucebna,date) {
     const suplovaniRoz = {};
 
     const cellStyleC1 = await page.$$eval(`${selector} .CellStyle_C1`, elements => elements.map(el => el.textContent.trim()));
-    suplovaniRoz.den = formatDateString(date);
+    suplovaniRoz.den = formatovani_datumu_tecky(date);
     suplovaniRoz.trida = cellStyleC1[cellStyleC1.length - 1];
     suplovaniRoz.hodina = await page.$eval(`${selector} .CellStyle_C2`, el => el.textContent.trim());
     suplovaniRoz.chybejici = cellStyleC1[cellStyleC1.length - 2];
@@ -126,7 +122,7 @@ async function setDocSuplProUcebny(page, selector,ucebna,date) {
     suplovaniRoz.zastupujici = "";
     supl.push(suplovaniRoz);
 }
-const fetchData= async (url, value) =>{
+const fetch_suplovani= async (url, value) =>{
     supl = [];
     const browser = await chromium.puppeteer.launch({
         args: [...chromium.args],
@@ -140,7 +136,7 @@ const fetchData= async (url, value) =>{
 
         const parts = url.split('_');
         const date = parts.slice(-3).join('-').replace('.html', '');
-
+        //druhá tabulka, řádky
         const rows = await page.$$eval('table:nth-of-type(2) tr', rows => rows.map(row => row.outerHTML));
 
         for (let i = 0; i < rows.length; i++) {
@@ -152,10 +148,10 @@ const fetchData= async (url, value) =>{
                     const rowspan = parseInt(firstCellRowspan, 10);
 
                     for (let j = 0; j < rowspan; j++) {
-                        await setDocSupl(page, `table:nth-of-type(2) tr:nth-of-type(${i + 1 + j})`,value,date);
+                        await set_supl(page, `table:nth-of-type(2) tr:nth-of-type(${i + 1 + j})`,value,date);
                     }
                 } else {
-                    await setDocSupl(page, `table:nth-of-type(2) tr:nth-of-type(${i + 1})`,value,date);
+                    await set_supl(page, `table:nth-of-type(2) tr:nth-of-type(${i + 1})`,value,date);
                 }
             }
         }
@@ -170,9 +166,9 @@ const fetchData= async (url, value) =>{
     return supl;
 
 }
-const setDocSupl= async (page, selector,trida,date) => {
+const set_supl= async (page, selector,trida,date) => {
     const suplovaniRoz = {};
-    suplovaniRoz.den = formatDateString(date);
+    suplovaniRoz.den = formatovani_datumu_tecky(date);
     suplovaniRoz.trida = trida;
     suplovaniRoz.hodina = await page.$eval(`${selector} .CellStyle_B2`, el => el.textContent.trim());
     suplovaniRoz.chybejici = await page.$eval(`${selector} .CellStyle_B3`, el => el.textContent.trim());
@@ -188,7 +184,7 @@ const setDocSupl= async (page, selector,trida,date) => {
     supl.push(suplovaniRoz);
 }
 
-exports.rozvrhAddRealtime = onSchedule({schedule:" 0 1 1-6,9-12 *", memory:"8GiB", timeoutSeconds:3000, region:"europe-central2",timeZone:"CET"}, async (res,event) => {
+exports.rozvrhAddRealtime = onSchedule({schedule:"0 0 1 1-6,9-12 *", memory:"8GiB", timeoutSeconds:3000, region:"europe-central2",timeZone:"CET"}, async (res,event) => {
     const browser = await chromium.puppeteer.launch({
         args: [...chromium.args],
         defaultViewport: chromium.defaultViewport,
@@ -199,10 +195,11 @@ exports.rozvrhAddRealtime = onSchedule({schedule:" 0 1 1-6,9-12 *", memory:"8GiB
     try {
         const tridy = await scraper.tridy();
         for (const trida of tridy) {
-            const scrapedRozvrh = await scraper.screpeRozvrh(trida);
+            const scrapedRozvrh = await scraper.scrapeTridy(trida);
             const withoutExtension = trida.replace(/\.html$/, '');
             const result = withoutExtension.replace(/^rozvrh_Trida_/, '');
             const ref = database.ref(`rozvrh`);
+            //uloží data rozvrhu pod zkratou 4La
             const usersRef = ref.child(result);
             await usersRef.set(scrapedRozvrh)
         }
@@ -265,7 +262,7 @@ exports.suplovani =  onSchedule({schedule:"*/30 6-22 * 1-6,9-12 0-5", memory:"4G
 
     try {
         const page = await browser.newPage();
-        const date = formatDateToCustomString(new Date())
+        const date = formatovani_datumu_podtrizitka(new Date())
         const dnyVSuplovani = await supl_ziskani_datumu()
         const url = `Sestava_pro_web_${date}.html`;
         const index = dnyVSuplovani.findIndex(el => el === url);
@@ -276,14 +273,12 @@ exports.suplovani =  onSchedule({schedule:"*/30 6-22 * 1-6,9-12 0-5", memory:"4G
 
             const suplVyucujici = await page.evaluate(() => {
                 const cells = document.querySelectorAll("table:nth-of-type(1) .cell");
-                // Determine which cell to use and split its text
                 const index = Array.from(cells).findIndex((cell) => cell.textContent.includes("Vyučující:"));
 
                 const text = cells[index+1].innerText
-                //Split the text by commas, trim white spaces, and filter out empty strings
                 return text
                     .split(",")
-                    .map(item => item.trim()) // Remove white spaces from each item
+                    .map(item => item.trim())
                     .filter(item => item !== "");
             });
 
@@ -295,11 +290,10 @@ exports.suplovani =  onSchedule({schedule:"*/30 6-22 * 1-6,9-12 0-5", memory:"4G
                     return []
                 }
                 const text = cells[index+1].innerText
-                //Split the text by commas, trim white spaces, and filter out empty strings
                 return text
                     .split(",")
-                    .map(item => item.trim()) // Remove white spaces from each item
-                    .filter(item => item !== ""); // Remove empty strings if any
+                    .map(item => item.trim())
+                    .filter(item => item !== "");
             });
 
             function parseString(input) {
@@ -307,21 +301,17 @@ exports.suplovani =  onSchedule({schedule:"*/30 6-22 * 1-6,9-12 0-5", memory:"4G
                 !isNaN(parseInt(input[0])) ?  regex = /^([a-zA-Z0-9]+(?:\s*-\s*[a-zA-Z0-9]+(?:\/[a-zA-Z0-9]+)?)?)\s*\(((?:\d+\.\.\d+|\d+)(?:,\s*(?:\d+\.\.\d+|\d+))*)\)$/: regex = /^([\wÁÉÍÓÚŮÝČĎĚŇŘŠŤŽáéíóúůýčďěňřšťž\s.]+)\s*\(((?:\d+\.\.\d+|\d+)(?:,\s*(?:\d+\.\.\d+|\d+))*)\)$/;
 
                 const match = input.match(regex);
-
                 if (!match) {
                     throw new Error("Invalid format")
                 }
-
-                const label = match[1]; // Extract the label, e.g., "2SjTZ"
-                const content = match[2]; // Extract the content inside parentheses
+                const label = match[1];
+                const content = match[2];
 
                 const numbers = [];
 
-                // Split the content by commas and process each part
                 content.split(',').forEach((part) => {
                     part = part.trim();
                     if (part.includes('..')) {
-                        // Handle ranges like "0..2"
                         const [start, end] = part.split('..').map(Number);
                         for (let i = start; i <= end; i++) {
                             numbers.push(i);
@@ -384,11 +374,11 @@ exports.suplovani =  onSchedule({schedule:"*/30 6-22 * 1-6,9-12 0-5", memory:"4G
             const suplPoTridach = [];
 
             for (const trida of rows) {
-                const result = await fetchData(`https://www.sps-tabor.cz/rozvrh-supl/${den}`, trida);
+                const result = await fetch_suplovani(`https://www.sps-tabor.cz/rozvrh-supl/${den}`, trida);
                 suplPoTridach.push(result);
             }
             for (const ucebna of ucebny_v_suplovani) {
-                const result = await fetchSmallTab(`https://www.sps-tabor.cz/rozvrh-supl/${den}`, ucebna);
+                const result = await fetch_tabulku_ucebny(`https://www.sps-tabor.cz/rozvrh-supl/${den}`, ucebna);
                 suplPoTridach.push(result);
             }
 

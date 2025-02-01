@@ -27,18 +27,15 @@ const scrapeTridy = async (trida)=>{
                                 const title = skupina.querySelector('.StyleU3').getAttribute("title")? skupina.querySelector('.StyleU3').getAttribute("title"): '';
                                 let prijmeni ;
 
-                                //u jinych to funguje, nechci to tezce menit kvuli jednomu jmenu
                                 if(title === "Bes = MRes Ondřej Beneš O."){
                                     prijmeni= "Beneš O."
                                 }
                                 else {
                                     const parts = title.split(' ');
 
-                                    // Step 2: Find the position of '=' and slice off everything before it
                                     const equalsIndex = parts.indexOf('=');
                                     const relevantParts = equalsIndex >= 0 ? parts.slice(equalsIndex + 1) : parts;
 
-                                    // Step 3: Filter out words containing dots
                                     const filteredParts = relevantParts.filter(word => !word.includes('.'));
 
                                     prijmeni = filteredParts.length > 1 ? filteredParts[1] : null;
@@ -59,7 +56,7 @@ const scrapeTridy = async (trida)=>{
                         })
                         //colspan
                         if(td.getAttribute('colspan')){
-                            const colspanValue = parseInt(td.getAttribute('colspan'), 10); // Get the colspan value and convert it to an integer
+                            const colspanValue = parseInt(td.getAttribute('colspan'), 10);
                             return Array.from({ length: colspanValue }, () => hodina);
                         }else {
                             return [hodina]
@@ -140,6 +137,8 @@ const scrapeVyucujici = async (vyucujici)=>{
                 });
             });
         });
+
+
     }catch (error){
         throw (new Error(error))
     }finally {
@@ -200,7 +199,7 @@ const vyucujici = async ()=> {
     return vyucujici;
 }
 
-exports.screpeRozvrh = scrapeTridy;
+exports.scrapeTridy = scrapeTridy;
 exports.tridy = tridy;
 exports.vyucujici = vyucujici;
 exports.scrapeVyucujici = scrapeVyucujici;

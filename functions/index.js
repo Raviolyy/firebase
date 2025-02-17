@@ -28,8 +28,8 @@ const scrapeDataUrls = async () => {
     }finally {
         await browser.close();
     }
-
 };
+
 const formatToUnderScoreDate = (dateInput)=> {
     const date = new Date(dateInput);
     date.getDay()===0?date.setDate(date.getDate()+1):date;
@@ -38,12 +38,14 @@ const formatToUnderScoreDate = (dateInput)=> {
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}_${month}_${day}`;
 }
+
 function formatDateWithDots(dateString) {
     const [year, month, day] = dateString.split('-');
     const formattedMonth = parseInt(month, 10);
     const formattedDay = parseInt(day, 10);
     return `${formattedDay}. ${formattedMonth}.`;
 }
+
 let supl = [];
 async function fetchTableWithClassrooms(url, value) {
     supl = [];
@@ -408,7 +410,6 @@ exports.SubstituteTeachingSchedule =  onSchedule({schedule:"*/30 6-22 * 1-6,9-12
 
         for(const dayUrl of datesForScrape){
             const response = await page.goto(`https://www.sps-tabor.cz/rozvrh-supl/${dayUrl}`, {
-                waitUntil: 'networkidle2',
                 timeout: 3000
             });
 
@@ -469,7 +470,6 @@ exports.SubstituteTeachingSchedule =  onSchedule({schedule:"*/30 6-22 * 1-6,9-12
             }
 
             const findAbsentClassrooms = await page.evaluate(() => {
-
                 const tables = document.querySelectorAll('table');
                 let rows;
                 if (tables.length >= 2) {
